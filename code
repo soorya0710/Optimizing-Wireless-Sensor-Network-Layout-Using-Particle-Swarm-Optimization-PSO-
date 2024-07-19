@@ -1,0 +1,73 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from pyswarm import pso
+# Define the area size and sensor parameters
+area_size = 100  # 100x100 units
+num_sensors = 10
+min_coverage_radius = 15
+max_coverage_radius = 25
+energy_consumption_per_unit_radius = 1
+# Define obstacles as circles with center coordinates and radii
+obstacles = [
+    {"center": (30, 30), "radius": 10},
+    {"center": (70, 70), "radius": 15}
+]
+# Define the fitness function
+def coverage_function(positions):
+    positions = positions.reshape((num_sensors, 3))  # x, y, radius
+    total_overlap = 0
+    uncovered_area_penalty = 0
+    energy_consumption = 0
+
+    for i in range(num_sensors):
+        energy_consumption += positions[i, 2] * energy_consumption_per_unit_radius
+        for j in range(i + 1, num_sensors):
+            dist = np.linalg.norm(positions[i, :2] - positions[j, :2])
+            if dist < (positions[i, 2] + positions[j, 2]):  # Overlapping area calculation
+                total_overlap += (positions[i, 2] + positions[j, 2] - dist) ** 2
+
+        # Check if sensor is within any obstacle
+        for obstacle in obstacles:
+            dist_to_obstacle = np.linalg.norm(positions[i, :2] - obstacle["center"])
+            if dist_to_obstacle < (positions[i, 2] + obstacle["radius"]):
+                uncovered_area_penalty += (positions[i, 2] + obstacle["radius"] - dist_to_obstacle) ** 2
+
+    # Multi-goal: minimize overlap and energy consumption
+    return total_overlap + uncovered_area_penalty + energy_consumption
+
+# Define the bounds for the sensor positions and radii
+lb = [0, 0, min_coverage_radius] * num_sensors
+ub = [area_size, area_size, max_coverage_radius] * num_sensors
+
+# Perform Particle Swarm Optimization
+xopt, fopt = pso(coverage_function, lb, ub, swarmsize=100, maxiter=200)
+
+# Print the optimized positions and coverage
+optimized_positions = xopt.reshape((num_sensors, 3))
+print(f"Optimized sensor positions and radii:\n{optimized_positions}")
+print(f"Objective function value (total overlap + energy consumption + penalties): {fopt}")
+
+# Plot the sensor positions and coverage area
+def plot_sensors(positions, obstacles):
+    positions = positions.reshape((num_sensors, 3))
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlim(0, area_size)
+    ax.set_ylim(0, area_size)
+    
+    # Plot obstacles
+    for obstacle in obstacles:
+        circle = plt.Circle(obstacle["center"], obstacle["radius"], color='red', alpha=0.5)
+        ax.add_patch(circle)
+    
+    # Plot sensors
+    for pos in positions:
+        circle = plt.Circle(pos[:2], pos[2], color='blue', alpha=0.3)
+        ax.add_patch(circle)
+        ax.plot(pos[0], pos[1], 'ro')
+    
+    plt.title('Sensor Network Layout Optimization using PSO with Upgrades')
+    plt.xlabel('X Position')
+    plt.ylabel('Y Position')
+    plt.grid(True)
+    plt.show()
+plot_sensors(optimized_positions, obstacles)
